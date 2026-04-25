@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NVIDIA GPU Architectures 04 — Memory Hierarchy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: #0d1117;
+            --bg-code: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #76B900;
+            --accent-dim: #76B90044;
+            --accent-glow: #76B90033;
+            --border: #21262d;
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --font-body: 'Inter', sans-serif;
+            --max-width: 900px;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 17px;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ── Header ── */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .hero > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .series-label {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+
+        .hero h1 .accent {
+            color: var(--accent);
+        }
+
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin-bottom: 2rem;
+        }
+
+        /* ── Tag Pills ── */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+            white-space: nowrap;
+        }
+
+        /* ── Pipeline Flow Bar ── */
+        .pipeline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            max-width: var(--max-width);
+        }
+
+        .pipeline-step {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 0.3rem 0.7rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .pipeline-arrow {
+            color: var(--accent);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        /* ── Slides ── */
+        .slide {
+            min-height: 100vh;
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 4rem 1.5rem;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide-number {
+            font-family: var(--font-display);
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--accent-dim);
+            position: absolute;
+            top: 2rem;
+            right: 1.5rem;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .slide h2 {
+            font-family: var(--font-display);
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            line-height: 1.25;
+        }
+
+        .slide h3 {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .slide p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .slide p strong {
+            color: var(--text-primary);
+        }
+
+        .slide ul, .slide ol {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        .slide li {
+            margin-bottom: 0.4rem;
+        }
+
+        .slide li strong {
+            color: var(--text-primary);
+        }
+
+        /* ── Code Blocks ── */
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 1.25rem 0;
+            overflow: hidden;
+        }
+
+        .code-header {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: rgba(118, 185, 0, 0.08);
+            padding: 0.4rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .code-block pre {
+            margin: 0;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        .code-block code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #c9d1d9;
+        }
+
+        /* Syntax highlighting (manual) */
+        .kw { color: #ff7b72; }
+        .fn { color: #d2a8ff; }
+        .str { color: #a5d6ff; }
+        .cm { color: #8b949e; font-style: italic; }
+        .num { color: #79c0ff; }
+        .type { color: #ffa657; }
+        .dir { color: #ff7b72; }
+        .mac { color: #ffa657; }
+
+        /* ── Tables ── */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 1.25rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: var(--bg-code);
+            color: var(--accent);
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-display);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:nth-child(even) td {
+            background: rgba(13, 17, 23, 0.5);
+        }
+
+        /* ── Diagrams ── */
+        .diagram-flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-box {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .diagram-box.accent {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(118, 185, 0, 0.08);
+        }
+
+        .diagram-box.dim {
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+
+        .diagram-arrow {
+            color: var(--accent);
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        /* Vertical flow diagrams */
+        .diagram-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-vertical .diagram-arrow {
+            font-size: 1.1rem;
+        }
+
+        /* Nested hierarchy diagram */
+        .hierarchy {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .hierarchy-level {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .hierarchy-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .hierarchy-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .hierarchy-item {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .hierarchy-item.accent {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(118, 185, 0, 0.08);
+        }
+
+        /* Grid diagram */
+        .diagram-grid {
+            display: grid;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-grid.cols-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .diagram-grid.cols-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .diagram-panel {
+            padding: 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .diagram-panel.accent-border {
+            border-left: 3px solid var(--accent);
+        }
+
+        .diagram-panel h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .diagram-panel p, .diagram-panel ul {
+            font-size: 0.85rem;
+        }
+
+        /* ── Callout Boxes ── */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 8px 8px 0;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+        }
+
+        .callout .callout-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        /* ── Tier Visual ── */
+        .tier-visual {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .tier-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tier-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 90px;
+            text-align: right;
+        }
+
+        .tier-fill {
+            height: 32px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            padding: 0 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            white-space: nowrap;
+            transition: width 0.6s ease;
+        }
+
+        .tier-cost {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            min-width: 70px;
+        }
+
+        /* ── Contents list ── */
+        .contents-list {
+            list-style: none;
+            padding-left: 0;
+            counter-reset: contents;
+        }
+
+        .contents-list li {
+            counter-increment: contents;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .contents-list li:last-child {
+            border-bottom: none;
+        }
+
+        .contents-list li::before {
+            content: counter(contents, decimal-leading-zero);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 2rem;
+        }
+
+        .contents-list a {
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .contents-list a:hover {
+            color: var(--accent);
+        }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .slide {
+                padding: 3rem 1rem;
+                min-height: auto;
+            }
+
+            .slide-number {
+                font-size: 3rem;
+                top: 1.5rem;
+                right: 1rem;
+            }
+
+            .slide h2 {
+                font-size: 1.5rem;
+            }
+
+            .diagram-grid.cols-2,
+            .diagram-grid.cols-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline {
+                gap: 0.15rem;
+            }
+
+            .pipeline-step {
+                font-size: 0.6rem;
+                padding: 0.2rem 0.4rem;
+            }
+
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+
+            table {
+                font-size: 0.78rem;
+            }
+
+            .tier-label {
+                min-width: 60px;
+                font-size: 0.65rem;
+            }
+
+            .tier-fill {
+                font-size: 0.6rem;
+                height: 26px;
+            }
+        }
+
+        /* ── Interactive controls (added for Local LLM series) ── */
+        .control-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .control-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .control-row label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            min-width: 180px;
+        }
+        .control-row input[type="range"] {
+            flex: 1;
+            min-width: 160px;
+            accent-color: var(--accent);
+        }
+        .control-row input[type="number"],
+        .control-row select {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 4px;
+            padding: 0.3rem 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+        .control-row .val {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 80px;
+            text-align: right;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 0.4rem 0.9rem;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .btn:hover { background: rgba(118, 185, 0, 0.2); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.secondary {
+            background: var(--bg-code);
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+        .result-box {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            margin-top: 0.75rem;
+        }
+        .result-box .line-label { color: var(--text-secondary); }
+        .result-box .line-val   { color: var(--accent); font-weight: 600; }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        .metric {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.6rem 0.8rem;
+            text-align: center;
+        }
+        .metric .metric-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .metric .metric-value {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--accent);
+            font-weight: 600;
+            margin-top: 0.2rem;
+        }
+
+        /* Canvas / SVG containers */
+        .canvas-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1.25rem 0;
+            overflow-x: auto;
+        }
+        .canvas-wrap canvas,
+        .canvas-wrap svg {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+
+        /* Small inline badge */
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: middle;
+            margin-left: 0.3rem;
+        }
+        .badge.ok    { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .badge.warn  { border-color: #ffa657; color: #ffa657; background: rgba(255,166,87,0.08); }
+        .badge.bad   { border-color: #ff7b72; color: #ff7b72; background: rgba(255,123,114,0.08); }
+
+    </style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="series-label">NVIDIA GPU Architectures Series &mdash; Presentation 04</div>
+    <h1><span class="accent">Memory Hierarchy</span> &mdash; Registers, Caches, HBM, GDDR, and Why Bandwidth Wins</h1>
+    <p class="subtitle">Decode tok/s on a 70B model is bounded by memory bandwidth, not FLOPS. Walk through every level &mdash; registers, shared memory, L1/L2, HBM, GDDR, LPDDR &mdash; across NVIDIA generations, with numbers that tell you what your GPU can actually do.</p>
+
+    <div class="tags">
+        <span class="tag">Registers</span><span class="tag">Shared</span><span class="tag">L1</span>
+        <span class="tag">L2</span><span class="tag">HBM2e</span><span class="tag">HBM3</span>
+        <span class="tag">HBM3e</span><span class="tag">GDDR6X</span><span class="tag">GDDR7</span>
+        <span class="tag">LPDDR5x</span><span class="tag">TMA</span>
+    </div>
+
+    <div class="pipeline">
+        <span class="pipeline-step">Reg</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Shmem</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">L1</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">L2</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">HBM</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">C2C</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Host</span>
+    </div>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We'll Cover</h2>
+    <p>Twelve slides on every level of the NVIDIA GPU memory hierarchy &mdash; how big each tier is, how fast, what it costs to miss it, and why the last level (HBM, GDDR, LPDDR) is the one that decides single-stream LLM tok/s.</p>
+    <ul class="contents-list">
+        <li><a href="#slide-01">The Hierarchy in One Picture</a></li>
+        <li><a href="#slide-02">Registers &mdash; The Real Bandwidth Story</a></li>
+        <li><a href="#slide-03">Shared Memory + L1 &mdash; Configurable Per Kernel</a></li>
+        <li><a href="#slide-04">L2 Cache &mdash; The GPU-Wide Backstop</a></li>
+        <li><a href="#slide-05">TMA &mdash; Tensor Memory Accelerator (Hopper+)</a></li>
+        <li><a href="#slide-06">GDDR &mdash; The Consumer Memory</a></li>
+        <li><a href="#slide-07">HBM &mdash; The Datacenter Memory</a></li>
+        <li><a href="#slide-08">LPDDR5x + Unified Memory (Grace Systems)</a></li>
+        <li><a href="#slide-09">Bandwidth Ladder Visualised</a></li>
+        <li><a href="#slide-10">What Bandwidth Buys You &mdash; The Decode-Bound Insight</a></li>
+        <li><a href="#slide-11">Interactive: Decode-Speed Estimator</a></li>
+    </ul>
+</section>
+
+<!-- ════════════════════════════════════ Slide 01 ════════════════════════════════════ -->
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>The Hierarchy in One Picture</h2>
+    <p>Five tiers, five orders of magnitude. The trade is the usual one: as you climb down the pyramid, capacity grows by 10&times; or more, but latency grows by 10&times; and bandwidth drops by 4&ndash;10&times;. Everything kernel authors do &mdash; tiling, double-buffering, async copies, tensor cores &mdash; is in service of <strong>keeping the working set as high in the pyramid as possible</strong>.</p>
+
+    <div class="canvas-wrap">
+        <svg viewBox="0 0 720 400" width="720" height="400" xmlns="http://www.w3.org/2000/svg">
+            <style>
+                .pyr-lbl { fill: #e6edf3; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; }
+                .pyr-num { fill: #76B900; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; }
+                .pyr-sub { fill: #8b949e; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+                .pyr-h   { fill: #e6edf3; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; }
+                .t1 { fill: rgba(118,185,0,0.30); stroke: #76B900; }
+                .t2 { fill: rgba(165,214,255,0.25); stroke: #a5d6ff; }
+                .t3 { fill: rgba(210,168,255,0.25); stroke: #d2a8ff; }
+                .t4 { fill: rgba(255,166,87,0.25); stroke: #ffa657; }
+                .t5 { fill: rgba(139,148,158,0.20); stroke: #8b949e; }
+            </style>
+
+            <text x="10" y="20" class="pyr-h">Memory pyramid &mdash; per-SM and GPU-wide tiers</text>
+
+            <!-- Tier 1: registers (top) -->
+            <polygon points="320,40 400,40 420,80 300,80" class="t1"/>
+            <text x="360" y="60" class="pyr-lbl" text-anchor="middle">Registers</text>
+            <text x="440" y="55" class="pyr-num">256 KB / SM</text>
+            <text x="440" y="70" class="pyr-sub">~20 TB/s aggregate &middot; 0 cycle</text>
+
+            <!-- Tier 2: shmem + L1 -->
+            <polygon points="300,80 420,80 450,140 270,140" class="t2"/>
+            <text x="360" y="110" class="pyr-lbl" text-anchor="middle">Shared Memory + L1</text>
+            <text x="465" y="105" class="pyr-num">~256 KB / SM</text>
+            <text x="465" y="120" class="pyr-sub">~20 TB/s &middot; ~30 cycles</text>
+
+            <!-- Tier 3: L2 -->
+            <polygon points="270,140 450,140 490,220 230,220" class="t3"/>
+            <text x="360" y="180" class="pyr-lbl" text-anchor="middle">L2 Cache (GPU-wide)</text>
+            <text x="500" y="175" class="pyr-num">40&ndash;60 MB</text>
+            <text x="500" y="190" class="pyr-sub">~5 TB/s &middot; ~200 cycles</text>
+
+            <!-- Tier 4: HBM/GDDR -->
+            <polygon points="230,220 490,220 540,310 180,310" class="t4"/>
+            <text x="360" y="265" class="pyr-lbl" text-anchor="middle">HBM / GDDR (VRAM)</text>
+            <text x="555" y="260" class="pyr-num">40&ndash;192 GB</text>
+            <text x="555" y="275" class="pyr-sub">0.3&ndash;8 TB/s &middot; ~400&ndash;700 cyc</text>
+
+            <!-- Tier 5: host RAM via NVLink-C2C / PCIe -->
+            <polygon points="180,310 540,310 600,380 120,380" class="t5"/>
+            <text x="360" y="345" class="pyr-lbl" text-anchor="middle">Host RAM &mdash; NVLink-C2C / PCIe</text>
+            <text x="615" y="340" class="pyr-num">128 GB &mdash; 1 TB+</text>
+            <text x="615" y="355" class="pyr-sub">0.05&ndash;0.6 TB/s &middot; &micro;s</text>
+
+            <!-- Vertical axis label -->
+            <text x="80" y="60"  class="pyr-sub">faster</text>
+            <text x="80" y="370" class="pyr-sub">slower</text>
+            <line x1="105" y1="50" x2="105" y2="375" stroke="#21262d" stroke-width="1"/>
+            <polygon points="105,50 100,60 110,60" fill="#21262d"/>
+            <polygon points="105,375 100,365 110,365" fill="#21262d"/>
+        </svg>
+    </div>
+
+    <h3>The five tiers, summarised</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Tier</th><th>Scope</th><th>Typical size</th><th>Bandwidth</th><th>Latency</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Registers</strong></td><td>per thread (private)</td><td>256 KB / SM file</td><td>~20 TB/s aggregate</td><td>0 cycles</td></tr>
+                <tr><td><strong>Shared Memory + L1</strong></td><td>per thread block</td><td>~256 KB / SM total</td><td>~20 TB/s</td><td>~30 cycles</td></tr>
+                <tr><td><strong>L2 Cache</strong></td><td>GPU-wide</td><td>40&ndash;60 MB (up to 96 on AD102)</td><td>~5 TB/s</td><td>~200 cycles</td></tr>
+                <tr><td><strong>HBM / GDDR (VRAM)</strong></td><td>device global</td><td>40&ndash;192 GB</td><td>0.3&ndash;8 TB/s</td><td>~400&ndash;700 cyc</td></tr>
+                <tr><td><strong>Host RAM (C2C / PCIe)</strong></td><td>system-wide</td><td>128 GB &mdash; 1 TB+</td><td>0.05&ndash;0.6 TB/s</td><td>microseconds</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">The kernel author's mantra</div>
+        <p>Touch every byte of a tensor <em>once</em> from HBM, <em>many</em> times from L2, <em>most</em> from shared memory, and <em>always</em> from registers. A well-tiled GEMM hits HBM exactly <code>(M&middot;K + K&middot;N + M&middot;N)</code> times even though the algorithm performs <code>2&middot;M&middot;N&middot;K</code> multiply-adds. The ratio between those two numbers is the arithmetic intensity, and it is what tensor cores need to keep fed.</p>
+    </div>
+</section>
+
+<!-- ════════════════════════════════════ Slide 02 ════════════════════════════════════ -->
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>Registers &mdash; The Real Bandwidth Story</h2>
+    <p>Each SM has a <strong>256 KB register file</strong>, split across four schedulers (partitions) of 64 KB each. That is &mdash; per chip &mdash; the largest, fastest, and most-bandwidth memory you have. An H100 with 132 SMs carries roughly <strong>33 MB of register file</strong> on chip, larger than its L2.</p>
+
+    <h3>Register pressure and occupancy</h3>
+    <p>The register file is partitioned at kernel-launch time:</p>
+    <div class="code-block">
+        <div class="code-header">occupancy arithmetic</div>
+<pre><code><span class="cm"># Active threads per SM, given regs/thread</span>
+threads_per_SM = floor( <span class="num">65536</span> regs / regs_per_thread )
+
+<span class="cm"># 65536 = 256 KB / 4 bytes per register, per partition &times; 4 partitions</span>
+<span class="cm"># A warp = 32 threads. Active warps = threads_per_SM / 32.</span>
+
+<span class="cm"># Examples</span>
+regs_per_thread = <span class="num">32</span>  &rarr; 2048 threads &rarr; 64 warps  <span class="cm"># max occupancy on most arches</span>
+regs_per_thread = <span class="num">64</span>  &rarr; 1024 threads &rarr; 32 warps  <span class="cm"># half-occupancy</span>
+regs_per_thread = <span class="num">128</span> &rarr; 512  threads &rarr; 16 warps  <span class="cm"># quarter</span>
+regs_per_thread = <span class="num">255</span> &rarr; 256  threads &rarr; 8  warps  <span class="cm"># tensor-core kernel</span>
+</code></pre>
+    </div>
+
+    <h3>High-occupancy vs tensor-core kernels</h3>
+    <ul>
+        <li><strong>High occupancy</strong> &mdash; Kernels with &le; 32 regs/thread keep many warps in flight, which lets the SM hide latency by switching warps when one stalls. Good for memory-bound work, simple math, embeddings.</li>
+        <li><strong>Tensor-core kernels</strong> &mdash; Modern matmul kernels (CUTLASS, cuBLASLt, FlashAttention) routinely use <strong>128&ndash;255 regs/thread</strong>. The accumulators for a 64&times;64 or 128&times;128 tile sit entirely in registers. Occupancy is intentionally low because each warp is doing more work per cycle and the math itself does the latency hiding.</li>
+        <li><strong>Spilling</strong> &mdash; Exceed the register file and the compiler "spills" to local memory (which is just a slice of L1/L2/HBM marked as thread-private). Spills are catastrophic on hot paths &mdash; they convert register access into HBM access. <code>nvcc -Xptxas -v</code> tells you how many regs/thread and how many spill bytes.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Why this dwarfs everything else</div>
+        <p>Aggregate register bandwidth on a Hopper SM is roughly <strong>~20 TB/s</strong> &mdash; the file is read every cycle by every active warp. Across 132 SMs, that is multi-petabyte/s of in-chip movement. HBM3, by contrast, is 3.35 TB/s. <em>The register file is the only thing on the chip that can keep tensor cores busy</em>; HBM only has to top up the tile.</p>
+    </div>
+
+    <h3>Reading the ptxas verbose output</h3>
+    <div class="code-block">
+        <div class="code-header">$ nvcc -Xptxas -v -arch=sm_90 my_kernel.cu</div>
+<pre><code>ptxas info    : <span class="num">132</span> bytes gmem
+ptxas info    : Compiling entry function <span class="str">'_Z6my_gemmPfS_S_'</span> for <span class="str">'sm_90'</span>
+ptxas info    : Function properties for _Z6my_gemmPfS_S_
+                <span class="num">0</span> bytes stack frame, <span class="num">0</span> bytes spill stores, <span class="num">0</span> bytes spill loads
+ptxas info    : Used <span class="num">168</span> registers, <span class="num">8704</span> bytes smem, <span class="num">408</span> bytes cmem[0]
+                                ^^^^                ^^^^
+                          regs/thread        shared memory/block
+</code></pre>
+    </div>
+    <p>168 regs/thread &times; 32 threads/warp = 5376 regs/warp. With four schedulers' worth of 16384 regs each (65536 total per SM), this kernel can host <code>65536 / 5376 &approx; 12 warps</code> per SM &mdash; well below the 64-warp ceiling. That is fine for a tensor-core kernel where each warp is doing a 64&times;64&times;16 wgmma.async; bad if you intended a memory-bound kernel.</p>
+</section>
+
+<!-- ════════════════════════════════════ Slide 03 ════════════════════════════════════ -->
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>Shared Memory + L1 &mdash; Configurable Per Kernel</h2>
+    <p>Pre-Volta, shared memory and L1 cache were separate SRAMs in the SM. Volta unified them into a single block of fast on-chip storage that the kernel can <strong>configure at launch time</strong>: how much for shared, how much for L1.</p>
+
+    <h3>Sizes per generation</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Arch</th><th>Total unified L1+Shmem / SM</th><th>Max shared per block</th><th>Configurable splits</th></tr></thead>
+            <tbody>
+                <tr><td>Volta (V100)</td><td>128 KB</td><td>96 KB</td><td>0/32/64/96 KB shared</td></tr>
+                <tr><td>Ampere (A100)</td><td>192 KB</td><td>164 KB</td><td>0/8/16/32/64/100/132/164 KB</td></tr>
+                <tr><td>Ampere (GA10x)</td><td>128 KB</td><td>100 KB</td><td>several</td></tr>
+                <tr><td>Ada (AD10x)</td><td>128 KB</td><td>100 KB</td><td>several</td></tr>
+                <tr><td>Hopper (H100/H200)</td><td>256 KB</td><td>228 KB</td><td>0/8/16/32/64/100/132/164/196/228 KB</td></tr>
+                <tr><td>Blackwell (B200)</td><td>256 KB</td><td>228 KB</td><td>same as Hopper</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>So a Hopper SM with the largest split is <strong>L1 = 28 KB, Shmem = 228 KB</strong>; tile-heavy kernels run that way. A graphics-style kernel that benefits from caching reads will pick a bigger L1 instead.</p>
+
+    <h3>Bank conflicts &mdash; the one footgun</h3>
+    <p>Shared memory is split into <strong>32 banks of 4 bytes</strong>. A warp issues 32 lanes per cycle; if all 32 lanes hit different banks, the access completes in one cycle. If two lanes hit the <em>same bank</em> at <em>different addresses</em>, the access serialises &mdash; a 2-way conflict costs 2&times;, a 32-way conflict costs 32&times;. Same address on the same bank is fine: it is broadcast.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Conflict-free</h4>
+            <ul>
+                <li>32 lanes &times; 4-byte stride 1 (consecutive)</li>
+                <li>Broadcasts (all lanes same address)</li>
+                <li>Padded tile widths (e.g. 33 instead of 32)</li>
+            </ul>
+        </div>
+        <div class="diagram-panel">
+            <h4>Conflict-prone</h4>
+            <ul>
+                <li>Column reads from a 32-wide tile</li>
+                <li>Power-of-two stride access (2, 4, 8, 16)</li>
+                <li>Naive transpose without padding</li>
+            </ul>
+        </div>
+    </div>
+
+    <h3>Common uses</h3>
+    <ul>
+        <li><strong>Tile-based matmul</strong> &mdash; load a 64&times;64 or 128&times;128 sub-tile of A and B once, reuse it across many warp-level MMAs.</li>
+        <li><strong>Reductions and prefix sums</strong> &mdash; warp shuffles handle 32 lanes; shmem stitches across warps inside a block.</li>
+        <li><strong>Stencils, transposes, FFT butterflies</strong> &mdash; anything with non-coalesced access patterns gets staged in shmem.</li>
+        <li><strong>Distributed Shared Memory (Hopper+)</strong> &mdash; threads in one block can read shmem of <em>another</em> block in the same cluster, over the SM-to-SM network. Up to 8 blocks per cluster on H100.</li>
+    </ul>
+</section>
+
+<!-- ════════════════════════════════════ Slide 04 ════════════════════════════════════ -->
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>L2 Cache &mdash; The GPU-Wide Backstop</h2>
+    <p>L2 sits between the SMs and the memory controllers. Every HBM/GDDR transaction traverses L2; everything an SM evicts from its L1/shmem ends up there. Hits cost ~200 cycles instead of ~500&ndash;700 for an HBM round trip, and the bandwidth is roughly an order of magnitude higher.</p>
+
+    <h3>L2 size by family</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>GPU</th><th>Arch</th><th>L2 size</th><th>Notes</th></tr></thead>
+            <tbody>
+                <tr><td>P100</td><td>Pascal</td><td>4 MB</td><td>The 2016 baseline</td></tr>
+                <tr><td>V100</td><td>Volta</td><td>6 MB</td><td>Modest bump</td></tr>
+                <tr><td>A100</td><td>Ampere</td><td><strong>40 MB</strong></td><td>Huge jump &mdash; first time L2 mattered for kernel design</td></tr>
+                <tr><td>GA10x (3090)</td><td>Ampere consumer</td><td>6 MB</td><td>Datacenter and consumer dies are very different here</td></tr>
+                <tr><td>AD102 (4090, RTX 6000 Ada)</td><td>Ada</td><td><strong>96 MB</strong></td><td>Largest ever &mdash; graphics-driven; shaders love it</td></tr>
+                <tr><td>H100</td><td>Hopper</td><td>50 MB</td><td>Partitioned in two halves &mdash; one per HBM stack group</td></tr>
+                <tr><td>H200</td><td>Hopper</td><td>50 MB</td><td>Same die as H100, just bigger HBM3e</td></tr>
+                <tr><td>B200</td><td>Blackwell</td><td>~64 MB</td><td>Two-die package; L2 partitioned per die</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Why it matters &mdash; per workload</h3>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Graphics / shaders (Ada)</h4>
+            <p>Working set per frame is a few tens of MB &mdash; G-buffers, shadow maps, textures. AD102's 96 MB L2 swallows almost the entire hot working set. The consumer 4090 looks &quot;too good&quot; in benchmarks partly because of this.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>LLM weight streaming</h4>
+            <p>A 70B FP16 model is 140 GB; even FP8 is 70 GB. <strong>Nothing</strong> caches a meaningful fraction of weights in L2. Decode reads every weight once per token from HBM/GDDR &mdash; L2 just buffers the next-tile prefetch.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>HPC stencils / sparse</h4>
+            <p>Reuse pattern is medium &mdash; halos and ghost cells fit in L2, halos do not. A100's 40 MB and Hopper's 50 MB were specifically sized for stencil kernels.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Attention KV cache</h4>
+            <p>Attention reads grow linearly with context length. At long context the KV cache no longer fits in L2; bandwidth becomes the limit. Hence Hopper's TMA + FlashAttention, designed to bypass L2 inefficiency.</p>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Ada's curiously large L2</div>
+        <p>96 MB on AD102 was a graphics-driven decision, similar in spirit to AMD's Infinity Cache. It does not help LLM weight streaming much &mdash; models are too large &mdash; but it does help <em>activation</em> reuse and shader workloads. It is one of the reasons the 4090 punches above its memory-bandwidth weight on game and rendering benchmarks.</p>
+    </div>
+
+    <h3>L2 residency control (Ampere+)</h3>
+    <p>Ampere introduced explicit hints for L2: a kernel can mark a buffer as <code>cudaAccessPropertyPersisting</code> so the cache prefers to keep it resident across kernel launches. Useful for KV caches and constant tables that get touched by every kernel in a pipeline.</p>
+    <div class="code-block">
+        <div class="code-header">marking a buffer as persisting in L2</div>
+<pre><code><span class="type">cudaStreamAttrValue</span> attr = {};
+attr.accessPolicyWindow.base_ptr  = kv_cache_ptr;
+attr.accessPolicyWindow.num_bytes = <span class="num">32</span> * <span class="num">1024</span> * <span class="num">1024</span>;  <span class="cm">// 32 MB window</span>
+attr.accessPolicyWindow.hitRatio  = <span class="num">1.0f</span>;
+attr.accessPolicyWindow.hitProp   = cudaAccessPropertyPersisting;
+attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
+<span class="fn">cudaStreamSetAttribute</span>(stream, cudaStreamAttributeAccessPolicyWindow, &amp;attr);</code></pre>
+    </div>
+    <p>The driver sets aside a fraction of L2 (configurable via <code>cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, ...)</code>) for the persisting set; the rest serves normal streaming traffic. Get this wrong and you starve the streaming path; get it right on a workload that actually has hot reuse and you can save ~10&ndash;20% bandwidth.</p>
+</section>
+
+<!-- ════════════════════════════════════ Slide 05 ════════════════════════════════════ -->
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>TMA &mdash; Tensor Memory Accelerator (Hopper+)</h2>
+    <p>The single biggest memory-system change since unified shmem. Pre-Hopper, every thread that wanted to bring data from HBM into shared memory issued its own load instruction. A 128&times;128 BF16 tile is 32 KB, 16,384 elements &mdash; a warp of 32 threads needs 512 instructions just to issue the loads, plus address arithmetic, plus the bookkeeping to coalesce.</p>
+
+    <h3>What TMA actually does</h3>
+    <ul>
+        <li>The CPU (or kernel) builds a <strong>tile descriptor</strong>: base pointer, multi-dim shape, strides, element type, swizzle mode.</li>
+        <li>One thread issues a single <code>cp.async.bulk.tensor</code> instruction with the descriptor and a destination shared-memory address.</li>
+        <li>A dedicated TMA engine on the SM walks the tile in HBM/L2, reorders into the swizzle layout shmem expects, and writes the whole tile.</li>
+        <li>The SM is freed to keep computing on the previous tile. A barrier (<code>mbarrier</code>) signals when the new tile lands.</li>
+    </ul>
+
+    <div class="diagram-vertical">
+        <div class="diagram-box">SM kernel: build tile descriptor (shape, stride, swizzle)</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box accent">cp.async.bulk.tensor.shared::cluster.global &mdash; one instruction</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box">TMA engine: walk HBM, swizzle, write to shmem</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box">mbarrier signals &mdash; SM consumes tile, issues next descriptor</div>
+    </div>
+
+    <h3>Why it is a big deal for LLMs</h3>
+    <ul>
+        <li><strong>Instruction-issue savings</strong> &mdash; the warp scheduler is freed from address arithmetic and tile loads, leaving more issue slots for tensor-core MMAs.</li>
+        <li><strong>True async double-buffer</strong> &mdash; while tile <em>n</em> is computing, tile <em>n+1</em> is loading. FlashAttention-3 is built on this.</li>
+        <li><strong>Cluster-wide sharing</strong> &mdash; one TMA can write a tile that all blocks in a thread-block cluster consume via Distributed Shared Memory. One HBM read, eight blocks of compute.</li>
+        <li><strong>Multi-cast</strong> &mdash; a single TMA can broadcast the same tile to multiple SMs in the cluster &mdash; particularly useful for the B-matrix in batched matmul.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">FlashAttention-3 in one sentence</div>
+        <p>"Use TMA to async-load Q, K, V tiles into shmem; use the tensor cores to compute softmax-and-PV in a register accumulator; never write the attention matrix back to HBM." That single sentence is a 2&ndash;3&times; speedup over FA-2 on H100 for long contexts &mdash; entirely from memory-system features, not from new arithmetic.</p>
+    </div>
+</section>
+
+<!-- ════════════════════════════════════ Slide 06 ════════════════════════════════════ -->
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>GDDR &mdash; The Consumer Memory</h2>
+    <p>GDDR is the descendant of DDR for graphics: faster signalling per pin, slightly looser latency, much wider point-to-point buses. It lives on the PCB next to the GPU die, soldered on a 256- or 384-bit bus.</p>
+
+    <h3>Generation by generation</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Generation</th><th>Signalling</th><th>Per-pin</th><th>Cards</th><th>Aggregate BW</th></tr></thead>
+            <tbody>
+                <tr><td><strong>GDDR6</strong></td><td>NRZ (DDR-style)</td><td>14&ndash;16 Gbps</td><td>L4, A6000 Ampere, 3060/3070</td><td>0.3&ndash;0.77 TB/s</td></tr>
+                <tr><td><strong>GDDR6X</strong></td><td>PAM4 (4-level)</td><td>19&ndash;23 Gbps</td><td>3090, 3090 Ti, 4080, 4090</td><td>~1.0 TB/s on 4090</td></tr>
+                <tr><td><strong>GDDR7</strong></td><td>PAM3 (3-level)</td><td>28&ndash;32 Gbps</td><td>5090, RTX PRO 6000 Blackwell</td><td>~1.79 TB/s</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Signalling, briefly</h3>
+    <ul>
+        <li><strong>NRZ / DDR</strong> &mdash; 1 bit per UI; the obvious mapping. Transition density limits the per-pin rate.</li>
+        <li><strong>PAM4</strong> &mdash; 4 voltage levels, 2 bits per UI. Doubles capacity at the same baud but eye-height is smaller; needs sophisticated equalisation, careful PCB design, and better thermals. GDDR6X uses it.</li>
+        <li><strong>PAM3</strong> &mdash; 3 levels, ~1.58 bits per UI. A compromise: less efficient than PAM4 but with much larger noise margins. GDDR7's choice was driven by the consumer-card SI/PI constraints &mdash; PAM4 is hard at 28+ Gbps without an interposer.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Why GDDR is not "cheap HBM"</div>
+        <p>GDDR is cheap per gigabyte and moves fast on a per-pin basis, but its <em>bus</em> is narrow compared to HBM (a 384-bit GDDR card vs a 1024-bit-per-stack HBM &times; 5&ndash;8 stacks). It also has practical capacity ceilings: 24 GB on a 4090, 32 GB on a 5090, 96 GB on the RTX PRO 6000 Blackwell &mdash; and that 96 GB is achieved with clamshell (memory chips on both sides of the PCB), not stacking. There is no 3D-stacked GDDR.</p>
+    </div>
+
+    <h3>Bandwidth maths</h3>
+    <p>Aggregate bandwidth = bus_width &times; per-pin_rate / 8. The 4090's GDDR6X runs at 21 Gbps on a 384-bit bus &rarr; 384 &times; 21e9 / 8 = ~1008 GB/s. The 5090's GDDR7 runs at 28 Gbps on a 512-bit bus &rarr; 512 &times; 28e9 / 8 = ~1792 GB/s. Two levers, neither of them changes lightly: bus width is set by the die's memory-PHY count, per-pin rate is set by the signalling tech.</p>
+
+    <h3>What ECC costs you on consumer GDDR</h3>
+    <p>Datacenter cards (A100, H100, L40S, RTX 6000 Ada) have ECC; the consumer 4090/5090 do not. On HBM, ECC is "side-band" &mdash; extra dies in the stack store the ECC bits without consuming user bandwidth. On GDDR, ECC is "in-line" &mdash; ECC consumes ~6.25% of the user bandwidth and capacity, which is why Quadro / RTX 6000 GDDR cards advertise slightly less peak BW than their consumer twins running at the same per-pin rate.</p>
+</section>
+
+<!-- ════════════════════════════════════ Slide 07 ════════════════════════════════════ -->
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>HBM &mdash; The Datacenter Memory</h2>
+    <p>HBM (High-Bandwidth Memory) is 3D-stacked DRAM &mdash; 8 to 12 dies stacked vertically, connected through the stack with through-silicon vias (TSVs), and bonded to a base logic die. The whole stack sits on a silicon interposer right next to the GPU die, usually under the same heatspreader.</p>
+
+    <div class="diagram-vertical">
+        <div class="diagram-box dim">PCB</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box accent">Silicon interposer (passive Si bridge with thousands of fine traces)</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box">[GPU die] &nbsp; [HBM stack 1] &nbsp; [HBM stack 2] &nbsp; ... &nbsp; [HBM stack 8]</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box dim">Each stack: 8&ndash;12 DRAM dies + 1 logic die, connected through TSVs &mdash; 1024+ bits wide</div>
+    </div>
+
+    <h3>The trade compared to GDDR</h3>
+    <ul>
+        <li><strong>Bus width</strong> &mdash; HBM is 1024+ bits per stack, 5&ndash;8 stacks per GPU &rarr; 5,000&ndash;8,000-bit aggregate bus. GDDR is 384&ndash;512 bits.</li>
+        <li><strong>Frequency</strong> &mdash; HBM runs much slower per pin (a few Gbps) &mdash; the wide bus does the work. Less SI/PI pain at the price of expensive packaging.</li>
+        <li><strong>Power</strong> &mdash; HBM moves ~3&ndash;5&times; the bandwidth at ~half the energy/bit of GDDR. Critical at datacenter scale.</li>
+        <li><strong>Cost</strong> &mdash; an HBM stack costs more than the entire GDDR PCB on a consumer card. The interposer alone is expensive silicon.</li>
+        <li><strong>Capacity</strong> &mdash; goes up by adding dies per stack; H200 (141 GB) = 8 stacks &times; HBM3e 24Gb dies, B200 (192 GB) = 8 stacks &times; HBM3e at 12-high.</li>
+    </ul>
+
+    <h3>HBM in the wild</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Card</th><th>HBM gen</th><th>Capacity</th><th>BW</th><th>Stacks</th></tr></thead>
+            <tbody>
+                <tr><td>P100</td><td>HBM2</td><td>16 GB</td><td>0.73 TB/s</td><td>4</td></tr>
+                <tr><td>V100</td><td>HBM2</td><td>16/32 GB</td><td>0.9 TB/s</td><td>4</td></tr>
+                <tr><td>A100 40</td><td>HBM2e</td><td>40 GB</td><td>1.55 TB/s</td><td>5</td></tr>
+                <tr><td>A100 80</td><td>HBM2e</td><td>80 GB</td><td>2.04 TB/s</td><td>5</td></tr>
+                <tr><td>H100 SXM5</td><td>HBM3</td><td>80 GB</td><td>3.35 TB/s</td><td>5</td></tr>
+                <tr><td>H200</td><td>HBM3e</td><td>141 GB</td><td>4.8 TB/s</td><td>6</td></tr>
+                <tr><td>B100 / B200</td><td>HBM3e</td><td>192 GB</td><td>8.0 TB/s</td><td>8</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Why HBM is a supply-chain story</div>
+        <p>Only three vendors make HBM at scale (SK hynix, Samsung, Micron) and only two assembly houses (TSMC CoWoS and a smaller fraction at Intel) can integrate it onto a GPU. <strong>HBM and CoWoS capacity, not GPU dies, are the throttle on H100/H200/B200 supply.</strong> This is also why GDDR is not going away &mdash; consumer and prosumer cards cannot afford to compete with datacenter for the HBM line.</p>
+    </div>
+</section>
+
+<!-- ════════════════════════════════════ Slide 08 ════════════════════════════════════ -->
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>LPDDR5x + Unified Memory (Grace Systems)</h2>
+    <p>The third memory tier in the modern lineup is the one most people miss. NVIDIA's Grace CPU pairs with Hopper or Blackwell GPUs over <strong>NVLink-C2C</strong>, a 900 GB/s coherent chip-to-chip link, and lets the GPU treat the CPU's <strong>LPDDR5x</strong> as <strong>EGM &mdash; Extended GPU Memory</strong>.</p>
+
+    <div class="diagram-flow">
+        <div class="diagram-box">Grace CPU</div>
+        <div class="diagram-arrow">&harr;</div>
+        <div class="diagram-box accent">NVLink-C2C 900 GB/s coherent</div>
+        <div class="diagram-arrow">&harr;</div>
+        <div class="diagram-box">Hopper / Blackwell GPU</div>
+    </div>
+    <div class="diagram-flow">
+        <div class="diagram-box dim">LPDDR5x ~480 GB/s &middot; 480&ndash;960 GB</div>
+        <div class="diagram-arrow">&nbsp;</div>
+        <div class="diagram-box dim">HBM3 / HBM3e 3.4&ndash;8 TB/s &middot; 80&ndash;192 GB</div>
+    </div>
+
+    <h3>What this gives you</h3>
+    <ul>
+        <li><strong>Huge effective capacity</strong> &mdash; a GH200 has 96 GB HBM3 + 480 GB LPDDR5x = 576 GB the GPU can address. A GB200 superchip has 192 GB HBM3e + 960 GB LPDDR5x = 1152 GB.</li>
+        <li><strong>Fast load times</strong> &mdash; load a 405B model in a few seconds because LPDDR is right next to the system, not over PCIe.</li>
+        <li><strong>Coherent paging</strong> &mdash; pages move on demand. Hot pages migrate to HBM under driver control; cold pages stay in LPDDR. Modest BW (480 GB/s LPDDR5x) but huge capacity.</li>
+        <li><strong>No PCIe bottleneck</strong> &mdash; C2C is 7&times; PCIe 5.0 x16. The CPU/GPU look like one address space.</li>
+    </ul>
+
+    <h3>Where it appears</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>System</th><th>CPU LPDDR5x</th><th>GPU HBM</th><th>Total addressable</th></tr></thead>
+            <tbody>
+                <tr><td>DGX Spark (GB10)</td><td>128 GB unified</td><td>(unified, not separate)</td><td>128 GB</td></tr>
+                <tr><td>GH200 480</td><td>480 GB</td><td>96 GB HBM3</td><td>576 GB</td></tr>
+                <tr><td>GH200 624</td><td>480 GB</td><td>144 GB HBM3e</td><td>624 GB</td></tr>
+                <tr><td>GB200 NVL72 (per superchip)</td><td>960 GB (2&times; Grace)</td><td>384 GB HBM3e (2&times; B200)</td><td>1344 GB</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">DGX Spark is the odd one out</div>
+        <p>Spark uses the GB10 SoC: a single SoC where Grace CPU and Blackwell GPU share <em>the same</em> 128 GB LPDDR5x pool &mdash; there is no HBM and no internal C2C. Bandwidth is modest (~273 GB/s), which makes 70B q4 decode land around 7&ndash;10 tok/s &mdash; slower than a 4090, but with 128 GB of capacity you can run things that physically do not fit on a 4090. Different point on the curve, same architecture lineage.</p>
+    </div>
+</section>
+
+<!-- ════════════════════════════════════ Slide 09 ════════════════════════════════════ -->
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>Bandwidth Ladder Visualised</h2>
+    <p>Memory bandwidth from low to high, across every memory technology covered. The shape of this chart is the shape of single-stream tok/s on a fixed model size.</p>
+
+    <div class="canvas-wrap">
+        <svg viewBox="0 0 720 320" width="720" height="320" xmlns="http://www.w3.org/2000/svg">
+            <style>
+                .axis{ stroke: #21262d; }
+                .b1 { fill: rgba(165,214,255,0.35); stroke: #a5d6ff; }
+                .b2 { fill: rgba(118,185,0,0.4); stroke: #76B900; }
+                .b3 { fill: rgba(210,168,255,0.35); stroke: #d2a8ff; }
+                .b4 { fill: rgba(255,166,87,0.35); stroke: #ffa657; }
+                .lbl{ fill: #8b949e; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+                .val{ fill: #e6edf3; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; }
+                .h  { fill: #e6edf3; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; }
+            </style>
+            <text x="10" y="18" class="h">Memory bandwidth per GPU &mdash; GB/s, higher is better</text>
+            <line x1="200" y1="30" x2="200" y2="300" class="axis"/>
+            <line x1="200" y1="300" x2="700" y2="300" class="axis"/>
+
+            <!-- Scale: 8000 GB/s &rarr; 500 px wide -->
+            <text x="190" y="50" class="lbl" text-anchor="end">LPDDR5x (Spark)</text>
+            <rect x="200" y="40" width="17" height="16" class="b1"/><text x="227" y="53" class="val">273 GB/s</text>
+
+            <text x="190" y="72" class="lbl" text-anchor="end">GDDR6 (L4)</text>
+            <rect x="200" y="62" width="19" height="16" class="b1"/><text x="229" y="75" class="val">300 GB/s</text>
+
+            <text x="190" y="94" class="lbl" text-anchor="end">GDDR6 (A6000)</text>
+            <rect x="200" y="84" width="48" height="16" class="b1"/><text x="258" y="97" class="val">768 GB/s</text>
+
+            <text x="190" y="116" class="lbl" text-anchor="end">GDDR6X (4090)</text>
+            <rect x="200" y="106" width="63" height="16" class="b2"/><text x="273" y="119" class="val">1008 GB/s</text>
+
+            <text x="190" y="138" class="lbl" text-anchor="end">GDDR7 (5090)</text>
+            <rect x="200" y="128" width="112" height="16" class="b2"/><text x="322" y="141" class="val">1792 GB/s</text>
+
+            <text x="190" y="160" class="lbl" text-anchor="end">HBM2e (A100 80)</text>
+            <rect x="200" y="150" width="127" height="16" class="b3"/><text x="337" y="163" class="val">2039 GB/s</text>
+
+            <text x="190" y="182" class="lbl" text-anchor="end">HBM3 (H100 SXM)</text>
+            <rect x="200" y="172" width="209" height="16" class="b3"/><text x="419" y="185" class="val">3350 GB/s</text>
+
+            <text x="190" y="204" class="lbl" text-anchor="end">HBM3e (H200)</text>
+            <rect x="200" y="194" width="300" height="16" class="b4"/><text x="510" y="207" class="val">4800 GB/s</text>
+
+            <text x="190" y="226" class="lbl" text-anchor="end">HBM3e (B200)</text>
+            <rect x="200" y="216" width="500" height="16" class="b4"/><text x="700" y="229" class="val" text-anchor="end">8000 GB/s</text>
+
+            <!-- baseline ticks -->
+            <line x1="200" y1="295" x2="200" y2="305" class="axis"/>
+            <line x1="325" y1="295" x2="325" y2="305" class="axis"/>
+            <line x1="450" y1="295" x2="450" y2="305" class="axis"/>
+            <line x1="575" y1="295" x2="575" y2="305" class="axis"/>
+            <line x1="700" y1="295" x2="700" y2="305" class="axis"/>
+            <text x="200" y="316" class="lbl" text-anchor="middle">0</text>
+            <text x="325" y="316" class="lbl" text-anchor="middle">2000</text>
+            <text x="450" y="316" class="lbl" text-anchor="middle">4000</text>
+            <text x="575" y="316" class="lbl" text-anchor="middle">6000</text>
+            <text x="700" y="316" class="lbl" text-anchor="middle">8000</text>
+        </svg>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Reading this chart</div>
+        <p>The ratio between top and bottom is <strong>~30&times;</strong>. That is roughly the ratio of single-stream decode tok/s between a B200 and a Spark on the same 70B FP8 model. There is no software in the world that closes that gap &mdash; bandwidth is a hardware fact.</p>
+    </div>
+
+    <h3>Same shape, different axis</h3>
+    <p>If you replace the x-axis with "single-stream 70B FP8 decode tok/s" you get almost the same shape, divided by 70 (since FP8 is 1 byte/param and 70B is 70 GB). That is the entire content of the next slide.</p>
+</section>
+
+<!-- ════════════════════════════════════ Slide 10 ════════════════════════════════════ -->
+<section class="slide" id="slide-10">
+    <div class="slide-number">10</div>
+    <h2>What Bandwidth Buys You &mdash; The Decode-Bound Insight</h2>
+    <p>Autoregressive decoding generates one token at a time. To produce that token, the model reads <strong>every weight, exactly once</strong>, multiplies by the previous activation, accumulates, and writes the next token. The arithmetic intensity of decode is ~1 (one multiply-add per byte read). That is firmly memory-bound on every modern GPU.</p>
+
+    <div class="code-block">
+        <div class="code-header">the only formula you need for single-stream decode</div>
+<pre><code>tok/s &asymp; <span class="kw">min</span>( bandwidth / weight_bytes,  compute_limit )
+
+<span class="cm"># For a decode-bound model (compute_limit very high), the right term drops:</span>
+tok/s &asymp; bandwidth / weight_bytes
+
+<span class="cm"># weight_bytes = num_params &times; bytes_per_param</span>
+<span class="cm">#   FP16/BF16 &rarr; 2.0 bytes/param</span>
+<span class="cm">#   FP8       &rarr; 1.0 bytes/param</span>
+<span class="cm">#   INT4 / q4 &rarr; 0.5 bytes/param</span>
+<span class="cm">#   MX-FP4    &rarr; 0.5 bytes/param + tiny scale overhead</span>
+</code></pre>
+    </div>
+
+    <h3>Worked examples &mdash; 70B model</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Precision</th><th>Weight bytes</th><th>GPU</th><th>BW</th><th>Decode tok/s (est.)</th></tr></thead>
+            <tbody>
+                <tr><td>FP16</td><td>140 GB</td><td>H200</td><td>4800 GB/s</td><td><strong>~34 tok/s</strong></td></tr>
+                <tr><td>FP8</td><td>70 GB</td><td>H200</td><td>4800 GB/s</td><td><strong>~68 tok/s</strong></td></tr>
+                <tr><td>FP8</td><td>70 GB</td><td>B200</td><td>8000 GB/s</td><td><strong>~114 tok/s</strong></td></tr>
+                <tr><td>q4 (INT4)</td><td>40 GB</td><td>RTX 4090</td><td>1008 GB/s</td><td><strong>~25 tok/s</strong></td></tr>
+                <tr><td>FP8</td><td>70 GB</td><td>H100</td><td>3350 GB/s</td><td>~48 tok/s</td></tr>
+                <tr><td>q4</td><td>40 GB</td><td>RTX 5090</td><td>1792 GB/s</td><td>~45 tok/s</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Where compute starts to matter</h3>
+    <ul>
+        <li><strong>Prefill</strong> &mdash; Reading a prompt of 4 K tokens is fundamentally a batched matmul (4 K rows &times; weight matrix). Arithmetic intensity climbs into the hundreds; tensor cores run flat out; bandwidth stops being the bottleneck.</li>
+        <li><strong>Big-batch decode</strong> &mdash; If you batch 32 concurrent decode streams together, every weight read is shared across 32 streams. Effective intensity goes from 1 to 32, and you re-enter compute-bound territory.</li>
+        <li><strong>MoE</strong> &mdash; Only the routed experts get read per token. A 405B-param model with 8 experts of 50B activated per token reads "only" 50B of weights &mdash; not 405B. Sparsity changes the bandwidth requirement, not the compute one.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">The single sentence to take away</div>
+        <p>For single-stream decode, <strong>bandwidth wins</strong>. For prefill and big-batch serving, <strong>FLOPS win</strong>. Real serving systems are an interleave of both, which is why Hopper-class HBM3/HBM3e cards dominate datacenter LLM serving &mdash; they are good at both.</p>
+    </div>
+
+    <h3>The KV cache, the other big bandwidth consumer</h3>
+    <p>So far we have only counted weight reads. There is a second per-token cost: reading the <strong>KV cache</strong> &mdash; the past keys and values for every token in the context window. Per layer, per head, this is <code>2 &times; context_len &times; head_dim &times; bytes_per_elem</code>. For a 70B model with 64 layers, 8 KV heads, 128 head_dim, BF16, 4 K context: <code>2 &times; 4096 &times; 1024 &times; 2 &times; 64 = ~1 GB per stream</code>. At 32 K context that becomes 8 GB.</p>
+    <ul>
+        <li>So the actual decode bandwidth requirement is <code>weight_bytes + kv_bytes_per_token &times; context_len</code>. At long context, KV reads can equal or exceed weight reads.</li>
+        <li>This is why <strong>FP8 KV cache</strong> is now standard in vLLM and TRT-LLM &mdash; it halves the second term and is essentially free in quality if done with per-token scales.</li>
+        <li>It is also why <strong>GQA</strong> (grouped-query attention) and <strong>MLA</strong> (multi-head latent attention) matter so much for serving &mdash; they cut the KV cache by 4&ndash;16&times; without changing weight count.</li>
+    </ul>
+</section>
+
+<!-- ════════════════════════════════════ Slide 11 ════════════════════════════════════ -->
+<section class="slide" id="slide-11">
+    <div class="slide-number">11</div>
+    <h2>Interactive: Decode-Speed Estimator</h2>
+    <p>Pick a model size, a precision, and a GPU. The estimator computes the weight bytes, checks they fit in VRAM, and applies <code>tok/s &asymp; bandwidth / weight_bytes</code>.</p>
+
+    <div class="control-panel">
+        <div class="control-row">
+            <label for="dse-model">Model size</label>
+            <select id="dse-model">
+                <option value="1">1 B</option>
+                <option value="7">7 B</option>
+                <option value="13">13 B</option>
+                <option value="32">32 B</option>
+                <option value="70" selected>70 B</option>
+                <option value="405">405 B</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label for="dse-prec">Precision</label>
+            <select id="dse-prec">
+                <option value="2.0">FP16 / BF16 &mdash; 2.0 bytes/param</option>
+                <option value="1.0" selected>FP8 &mdash; 1.0 bytes/param</option>
+                <option value="0.5">INT4 / q4 &mdash; 0.5 bytes/param</option>
+                <option value="0.55">MX-FP4 &mdash; 0.5 + scales</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label for="dse-gpu">GPU</label>
+            <select id="dse-gpu">
+                <option value="a100">A100 80 GB &middot; HBM2e &middot; 2039 GB/s</option>
+                <option value="h100" selected>H100 80 GB &middot; HBM3 &middot; 3350 GB/s</option>
+                <option value="h200">H200 141 GB &middot; HBM3e &middot; 4800 GB/s</option>
+                <option value="b200">B200 192 GB &middot; HBM3e &middot; 8000 GB/s</option>
+                <option value="4090">RTX 4090 24 GB &middot; GDDR6X &middot; 1008 GB/s</option>
+                <option value="5090">RTX 5090 32 GB &middot; GDDR7 &middot; 1792 GB/s</option>
+                <option value="pro6000">RTX PRO 6000 Blackwell 96 GB &middot; GDDR7 &middot; 1792 GB/s</option>
+                <option value="spark">DGX Spark 128 GB &middot; LPDDR5x &middot; 273 GB/s</option>
+            </select>
+        </div>
+        <div id="dse-out" class="result-box"></div>
+        <div class="metric-grid">
+            <div class="metric"><div class="metric-label">Weight bytes</div><div class="metric-value" id="dse-bytes">&mdash;</div></div>
+            <div class="metric"><div class="metric-label">Fits in VRAM</div><div class="metric-value" id="dse-fit">&mdash;</div></div>
+            <div class="metric"><div class="metric-label">GPU bandwidth</div><div class="metric-value" id="dse-bw">&mdash;</div></div>
+            <div class="metric"><div class="metric-label">Decode tok/s (est.)</div><div class="metric-value" id="dse-tps">&mdash;</div></div>
+        </div>
+    </div>
+
+    <p>Prefill is FLOPS-bound and behaves very differently &mdash; a 4 K-token prompt on a 70B FP8 model exercises the tensor cores, not the memory bus, and a B200 will out-prefill an H200 by roughly the FLOPS ratio (~2&times;) regardless of the bandwidth gap. Big-batch serving is similar: at batch 32+, weight reads are amortised across streams and the workload re-enters compute-bound territory. The estimator below is for the <em>single-stream decode</em> case where bandwidth dominates.</p>
+
+    <script>
+    (function(){
+        const gpus = {
+            'a100':    { name:'A100 80',    arch:'Ampere',    vram:80,  bw:2039 },
+            'h100':    { name:'H100 80',    arch:'Hopper',    vram:80,  bw:3350 },
+            'h200':    { name:'H200 141',   arch:'Hopper',    vram:141, bw:4800 },
+            'b200':    { name:'B200 192',   arch:'Blackwell', vram:192, bw:8000 },
+            '4090':    { name:'RTX 4090',   arch:'Ada',       vram:24,  bw:1008 },
+            '5090':    { name:'RTX 5090',   arch:'Blackwell', vram:32,  bw:1792 },
+            'pro6000': { name:'RTX PRO 6000 Blackwell', arch:'Blackwell', vram:96,  bw:1792 },
+            'spark':   { name:'DGX Spark',  arch:'Blackwell', vram:128, bw:273  }
+        };
+
+        function fmt(n) {
+            if (n >= 100) return n.toFixed(0);
+            if (n >= 10)  return n.toFixed(1);
+            return n.toFixed(2);
+        }
+
+        function rec() {
+            const params = parseFloat(document.getElementById('dse-model').value); // B params
+            const bpp    = parseFloat(document.getElementById('dse-prec').value);  // bytes per param
+            const gkey   = document.getElementById('dse-gpu').value;
+            const g      = gpus[gkey];
+
+            const weightGB = params * bpp;            // GB of weights
+            const fits     = weightGB <= g.vram - 2;  // leave 2 GB for activations/KV
+            const fitBadge = fits
+                ? '<span class="badge ok">ok</span>'
+                : '<span class="badge bad">too big</span>';
+
+            const tps = fits ? Math.round(g.bw / weightGB) : null;
+
+            document.getElementById('dse-bytes').innerHTML = fmt(weightGB) + ' GB';
+            document.getElementById('dse-fit').innerHTML   = (fits ? 'yes' : 'no') + ' ' + fitBadge;
+            document.getElementById('dse-bw').textContent  = g.bw + ' GB/s';
+            document.getElementById('dse-tps').textContent = tps !== null ? (tps + ' tok/s') : '— (does not fit)';
+
+            const headroomGB = (g.vram - weightGB).toFixed(1);
+            const formula = 'tok/s &asymp; bandwidth / weight_bytes &rarr; ' +
+                            g.bw + ' / ' + fmt(weightGB) + ' = ' +
+                            (tps !== null ? tps : '—') + ' tok/s';
+
+            document.getElementById('dse-out').innerHTML =
+                '<div><span class="line-label">model</span> &rarr; <span class="line-val">' + params + ' B params @ ' + bpp + ' B/param</span></div>' +
+                '<div><span class="line-label">GPU</span> &rarr; <span class="line-val">' + g.name + ' &middot; ' + g.arch + ' &middot; ' + g.vram + ' GB</span></div>' +
+                '<div><span class="line-label">VRAM headroom</span> &rarr; <span class="line-val">' + headroomGB + ' GB</span> after weights</div>' +
+                '<div style="margin-top:0.4rem;">' + formula + '</div>';
+        }
+        document.getElementById('dse-model').addEventListener('change', rec);
+        document.getElementById('dse-prec').addEventListener('change', rec);
+        document.getElementById('dse-gpu').addEventListener('change', rec);
+        rec();
+    })();
+    </script>
+</section>
+
+<!-- ════════════════════════════════════ Footer ════════════════════════════════════ -->
+<footer class="footer">
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLMs#nvidia-gpu-architectures">NVIDIA GPU Architectures Series</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;"><a href="https://github.com/BrendanJamesLynskey/LLMs#nvidia-gpu-architectures">Back to Series Index</a></p>
+</footer>
+
+<script>
+    // Smooth scroll for TOC links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    // Subtle fade-in on scroll
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.slide').forEach(slide => {
+        slide.style.opacity = '0';
+        slide.style.transform = 'translateY(30px)';
+        slide.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(slide);
+    });
+</script>
+
+</body>
+</html>
