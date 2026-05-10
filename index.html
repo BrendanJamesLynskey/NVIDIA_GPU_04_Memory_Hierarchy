@@ -1150,7 +1150,7 @@ attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
         <li><strong>Frequency</strong> &mdash; HBM runs much slower per pin (a few Gbps) &mdash; the wide bus does the work. Less SI/PI pain at the price of expensive packaging.</li>
         <li><strong>Power</strong> &mdash; HBM moves ~3&ndash;5&times; the bandwidth at ~half the energy/bit of GDDR. Critical at datacenter scale.</li>
         <li><strong>Cost</strong> &mdash; an HBM stack costs more than the entire GDDR PCB on a consumer card. The interposer alone is expensive silicon.</li>
-        <li><strong>Capacity</strong> &mdash; goes up by adding dies per stack; H200 (141 GB) = 8 stacks &times; HBM3e 24Gb dies, B200 (192 GB) = 8 stacks &times; HBM3e at 12-high.</li>
+        <li><strong>Capacity</strong> &mdash; goes up by adding dies per stack; H200 (141 GB) = 6 stacks of 8-high HBM3e 24Gb dies, B200 (192 GB) = 8 stacks of 8-high HBM3e 24Gb dies.</li>
     </ul>
 
     <h3>HBM in the wild</h3>
@@ -1196,7 +1196,7 @@ attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
 
     <h3>What this gives you</h3>
     <ul>
-        <li><strong>Huge effective capacity</strong> &mdash; a GH200 has 96 GB HBM3 + 480 GB LPDDR5x = 576 GB the GPU can address. A GB200 superchip has 192 GB HBM3e + 960 GB LPDDR5x = 1152 GB.</li>
+        <li><strong>Huge effective capacity</strong> &mdash; a GH200 has 96 GB HBM3 + 480 GB LPDDR5x = 576 GB the GPU can address. A GB200 superchip (1 Grace + 2 B200) has 384 GB HBM3e + 480 GB LPDDR5x = 864 GB.</li>
         <li><strong>Fast load times</strong> &mdash; load a 405B model in a few seconds because LPDDR is right next to the system, not over PCIe.</li>
         <li><strong>Coherent paging</strong> &mdash; pages move on demand. Hot pages migrate to HBM under driver control; cold pages stay in LPDDR. Modest BW (480 GB/s LPDDR5x) but huge capacity.</li>
         <li><strong>No PCIe bottleneck</strong> &mdash; C2C is 7&times; PCIe 5.0 x16. The CPU/GPU look like one address space.</li>
@@ -1210,7 +1210,7 @@ attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
                 <tr><td>DGX Spark (GB10)</td><td>128 GB unified</td><td>(unified, not separate)</td><td>128 GB</td></tr>
                 <tr><td>GH200 480</td><td>480 GB</td><td>96 GB HBM3</td><td>576 GB</td></tr>
                 <tr><td>GH200 624</td><td>480 GB</td><td>144 GB HBM3e</td><td>624 GB</td></tr>
-                <tr><td>GB200 NVL72 (per superchip)</td><td>960 GB (2&times; Grace)</td><td>384 GB HBM3e (2&times; B200)</td><td>1344 GB</td></tr>
+                <tr><td>GB200 (per superchip)</td><td>480 GB (1&times; Grace)</td><td>384 GB HBM3e (2&times; B200)</td><td>864 GB</td></tr>
             </tbody>
         </table>
     </div>
