@@ -890,7 +890,7 @@
 <section class="slide" id="slide-02">
     <div class="slide-number">02</div>
     <h2>Registers &mdash; The Real Bandwidth Story</h2>
-    <p>Each SM has a <strong>256 KB register file</strong>, split across four schedulers (partitions) of 64 KB each. That is &mdash; per chip &mdash; the largest, fastest, and most-bandwidth memory you have. An H100 with 132 SMs carries roughly <strong>33 MB of register file</strong> on chip, larger than its L2.</p>
+    <p>Each SM has a <strong>256 KB register file</strong>, split across four schedulers (partitions) of 64 KB each. That is &mdash; per chip &mdash; the largest, fastest, and most-bandwidth memory you have. An H100 with 132 SMs carries roughly <strong>33 MB of register file</strong> on chip, two-thirds the size of its 50 MB L2.</p>
 
     <h3>Register pressure and occupancy</h3>
     <p>The register file is partitioned at kernel-launch time:</p>
@@ -1087,7 +1087,7 @@ attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
 
     <div class="callout">
         <div class="callout-label">FlashAttention-3 in one sentence</div>
-        <p>"Use TMA to async-load Q, K, V tiles into shmem; use the tensor cores to compute softmax-and-PV in a register accumulator; never write the attention matrix back to HBM." That single sentence is a 2&ndash;3&times; speedup over FA-2 on H100 for long contexts &mdash; entirely from memory-system features, not from new arithmetic.</p>
+        <p>"Use TMA to async-load Q, K, V tiles into shmem; use the tensor cores to compute softmax-and-PV in a register accumulator; never write the attention matrix back to HBM." That single sentence is a 1.5&ndash;2&times; speedup over FA-2 on H100 for long contexts &mdash; entirely from memory-system features, not from new arithmetic.</p>
     </div>
 </section>
 
@@ -1160,7 +1160,7 @@ attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
             <tbody>
                 <tr><td>P100</td><td>HBM2</td><td>16 GB</td><td>0.73 TB/s</td><td>4</td></tr>
                 <tr><td>V100</td><td>HBM2</td><td>16/32 GB</td><td>0.9 TB/s</td><td>4</td></tr>
-                <tr><td>A100 40</td><td>HBM2e</td><td>40 GB</td><td>1.55 TB/s</td><td>5</td></tr>
+                <tr><td>A100 40</td><td>HBM2</td><td>40 GB</td><td>1.55 TB/s</td><td>5</td></tr>
                 <tr><td>A100 80</td><td>HBM2e</td><td>80 GB</td><td>2.04 TB/s</td><td>5</td></tr>
                 <tr><td>H100 SXM5</td><td>HBM3</td><td>80 GB</td><td>3.35 TB/s</td><td>5</td></tr>
                 <tr><td>H200</td><td>HBM3e</td><td>141 GB</td><td>4.8 TB/s</td><td>6</td></tr>
@@ -1217,7 +1217,7 @@ attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
 
     <div class="callout">
         <div class="callout-label">DGX Spark is the odd one out</div>
-        <p>Spark uses the GB10 SoC: a single SoC where Grace CPU and Blackwell GPU share <em>the same</em> 128 GB LPDDR5x pool &mdash; there is no HBM and no internal C2C. Bandwidth is modest (~273 GB/s), which makes 70B q4 decode land around 7&ndash;10 tok/s &mdash; slower than a 4090, but with 128 GB of capacity you can run things that physically do not fit on a 4090. Different point on the curve, same architecture lineage.</p>
+        <p>Spark uses the GB10 SoC: a single SoC where Grace CPU and Blackwell GPU share <em>the same</em> 128 GB LPDDR5x pool &mdash; there is no HBM; inside the package the CPU and GPU dies are joined by NVLink-C2C. Bandwidth is modest (~273 GB/s), which makes 70B q4 decode land around 5&ndash;7 tok/s (ceiling 273 &divide; ~40 GB &asymp; 7) &mdash; slower than a 4090, but with 128 GB of capacity you can run things that physically do not fit on a 4090. Different point on the curve, same architecture lineage.</p>
     </div>
 </section>
 
@@ -1323,9 +1323,9 @@ tok/s &asymp; bandwidth / weight_bytes
                 <tr><td>FP16</td><td>140 GB</td><td>H200</td><td>4800 GB/s</td><td><strong>~34 tok/s</strong></td></tr>
                 <tr><td>FP8</td><td>70 GB</td><td>H200</td><td>4800 GB/s</td><td><strong>~68 tok/s</strong></td></tr>
                 <tr><td>FP8</td><td>70 GB</td><td>B200</td><td>8000 GB/s</td><td><strong>~114 tok/s</strong></td></tr>
-                <tr><td>q4 (INT4)</td><td>40 GB</td><td>RTX 4090</td><td>1008 GB/s</td><td><strong>~25 tok/s</strong></td></tr>
+                <tr><td>q4 (INT4)</td><td>40 GB</td><td>2&times; RTX 4090 (layer split; 40 GB won't fit one)</td><td>1008 GB/s each</td><td><strong>~25 tok/s</strong></td></tr>
                 <tr><td>FP8</td><td>70 GB</td><td>H100</td><td>3350 GB/s</td><td>~48 tok/s</td></tr>
-                <tr><td>q4</td><td>40 GB</td><td>RTX 5090</td><td>1792 GB/s</td><td>~45 tok/s</td></tr>
+                <tr><td>q4</td><td>40 GB</td><td>RTX PRO 6000 (96 GB; won't fit a 32 GB 5090)</td><td>1792 GB/s</td><td>~45 tok/s</td></tr>
             </tbody>
         </table>
     </div>
